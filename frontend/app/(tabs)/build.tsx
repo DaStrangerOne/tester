@@ -12,6 +12,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { Colors, Typography, Spacing, Radius } from '@/constants/theme';
+import { ArtifactRewritePanel } from '@/components/build/ArtifactRewritePanel';
 
 const MONO = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 
@@ -1332,6 +1333,9 @@ export default function BuildScreen() {
           </View>
         ))}
       </View>
+
+      {/* AI rewrite artifact (moved from Config tab) */}
+      <ArtifactRewritePanel />
 
       {/* Search */}
       <View style={styles.searchBar}>
