@@ -23,6 +23,7 @@ import {
 import { loadSessions } from '@/services/sessionStorage';
 import { MITRE_TECHNIQUES, MITRE_TACTICS } from '@/constants/mitre';
 import { PROMPT_TEMPLATES } from '@/constants/prompts';
+import { getGodMode, setGodMode } from '@/services/godUser';
 
 const MONO = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 
@@ -140,6 +141,115 @@ const SESSION_CONFIG = {
 };
 
 type ConfigSection = 'overview' | 'runtime' | 'storage' | 'edge' | 'ai' | 'prompt' | 'kb' | 'env' | 'users' | 'artifact';
+
+/**
+ * GOD MODE control panel. When ON:
+ *  - The chat/agent uses an unrestricted system prompt
+ *  - The auto-exec hop cap is lifted (effectively unlimited)
+ *  - The LLM call has no client-side timeout
+ *  - The backend orchestrator (/api/god) is unlocked
+ *
+ * Any logged-in operator can toggle it. State is persisted in AsyncStorage.
+ */
+function GodModeCard() {
+  const [on, setOn] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    getGodMode().then(v => { setOn(v); setLoaded(true); });
+  }, []);
+
+  const toggle = useCallback(async (next: boolean) => {
+    setOn(next);
+    await setGodMode(next);
+  }, []);
+
+  if (!loaded) return null;
+
+  return (
+    <View
+      style={{
+        borderRadius: Radius.xl,
+        borderWidth: 1.5,
+        borderColor: on ? '#ff003388' : '#ff003344',
+        backgroundColor: on ? '#ff003318' : '#1a000599',
+        padding: Spacing.md,
+        marginBottom: Spacing.md,
+        shadowColor: '#ff0033',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: on ? 0.45 : 0,
+        shadowRadius: 18,
+        elevation: on ? 8 : 0,
+        gap: Spacing.sm,
+      }}
+      testID="god-mode-card"
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+        <View
+          style={{
+            width: 32, height: 32, borderRadius: 16,
+            backgroundColor: on ? '#ff0033' : '#ff003344',
+            alignItems: 'center', justifyContent: 'center',
+            shadowColor: '#ff0033', shadowOpacity: on ? 0.9 : 0, shadowRadius: 6,
+          }}
+        >
+          <MaterialIcons name="local-fire-department" size={18} color={on ? '#fff' : '#ff0033'} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              color: '#ff0033',
+              fontSize: Typography.lg,
+              fontWeight: Typography.bold,
+              letterSpacing: 2,
+              fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+            }}
+          >
+            GOD MODE
+          </Text>
+          <Text style={{ color: on ? '#ff003399' : Colors.textMuted, fontSize: 11, marginTop: 2, letterSpacing: 0.5 }}>
+            {on ? 'ALL RESTRICTIONS STRIPPED · UNCAPPED · UNGATED'
+                : 'OFF — standard constraints active'}
+          </Text>
+        </View>
+        <Switch
+          value={on}
+          onValueChange={toggle}
+          trackColor={{ false: Colors.surfaceBorder, true: '#ff003366' }}
+          thumbColor={on ? '#ff0033' : Colors.textMuted}
+          ios_backgroundColor={Colors.surfaceBorder}
+          testID="god-mode-toggle"
+        />
+      </View>
+
+      {on && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+          {[
+            { icon: 'shield-off', label: 'NO LIMITS' },
+            { icon: 'all-inclusive', label: 'UNLIMITED HOPS' },
+            { icon: 'block', label: 'NO TIMEOUT' },
+            { icon: 'flash-on', label: '/api/god UNLOCKED' },
+          ].map(b => (
+            <View
+              key={b.label}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 4,
+                paddingHorizontal: Spacing.sm, paddingVertical: 3,
+                borderRadius: Radius.full,
+                backgroundColor: '#ff003322', borderWidth: 1, borderColor: '#ff003355',
+              }}
+            >
+              <MaterialIcons name={b.icon as any} size={10} color="#ff0033" />
+              <Text style={{ color: '#ff0033', fontSize: 9, fontWeight: Typography.bold, letterSpacing: 1 }}>
+                {b.label}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function ConfigScreen() {
   const [activeSection, setActiveSection] = useState<ConfigSection>('overview');
@@ -848,6 +958,7 @@ Please produce the complete artifact now. Start immediately with the first FILE 
         {/* ══════════════════════ OVERVIEW ══════════════════════ */}
         {activeSection === 'overview' && (
           <>
+            <GodModeCard />
             <SectionHeader label="SYSTEM STATUS" color={Colors.accent} icon="monitor-heart" />
             <View style={styles.statusGrid}>
               {[

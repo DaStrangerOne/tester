@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { AuthUser } from '../types';
 import { authService } from './service';
+import { getGodSession } from '../../../services/godUser';
 
 interface AuthContextState {
   user: AuthUser | null;
@@ -48,6 +49,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const initializeAuth = async () => {
       
       try {
+        // ── God-user bypass ──
+        // If a god session is active in AsyncStorage, skip Supabase entirely
+        // and return a synthetic user so the AuthRouter lets us into the app.
+        const godUser = await getGodSession();
+        if (godUser) {
+          if (isMounted) {
+            updateState({
+              user: godUser as any,
+              loading: false,
+              initialized: true,
+            });
+          }
+          return; // skip Supabase auth entirely
+        }
+
         const currentUser = await authService.getCurrentUser();
         
         if (isMounted) {

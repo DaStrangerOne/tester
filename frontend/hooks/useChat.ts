@@ -3,10 +3,12 @@ import { Message, ChatSession, createSession, sendMessage, generateSessionTitle 
 import { saveSessions, loadSessions } from '@/services/sessionStorage';
 import { appendExecLog } from '@/services/executionLog';
 import { extractRunnableBlocks, runCode, formatExecResults, type ExecResult } from '@/services/autoExec';
+import { getGodMode, GOD_MODE_SYSTEM_PROMPT } from '@/services/godUser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AUTOEXEC_KEY = 'axiom:auto-exec';
-const AUTOEXEC_MAX_HOPS = 3; // safety limit on closed-loop iterations
+const NORMAL_AUTOEXEC_MAX_HOPS = 3;     // safety cap when god mode is OFF
+const GOD_AUTOEXEC_MAX_HOPS = 999;      // effectively unlimited when god mode is ON
 
 export function useChat() {
   const [session, setSession] = useState<ChatSession | null>(null);
@@ -155,9 +157,11 @@ export function useChat() {
       // ── Auto-exec closed loop ────────────────────────────────────────────
       // If the AI emitted any executable code blocks AND auto-exec is on,
       // run them, append results as a visible message, then ask the AI to
-      // continue. Capped at AUTOEXEC_MAX_HOPS iterations.
+      // continue. Cap depends on god mode.
       if (autoExec) {
-        for (let hop = 0; hop < AUTOEXEC_MAX_HOPS; hop++) {
+        const godOn = await getGodMode().catch(() => false);
+        const maxHops = godOn ? GOD_AUTOEXEC_MAX_HOPS : NORMAL_AUTOEXEC_MAX_HOPS;
+        for (let hop = 0; hop < maxHops; hop++) {
           const blocks = extractRunnableBlocks(finalContent);
           if (blocks.length === 0) break;
 

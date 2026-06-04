@@ -1,5 +1,6 @@
 // Red Team AI — Real AI Service via OnSpace AI Edge Function
 import { buildEnhancedSystemPrompt, getActiveModel, autoLearnFromSession, getCustomAIProvider } from '@/services/selfUpdateService';
+import { getGodMode, GOD_MODE_SYSTEM_PROMPT } from '@/services/godUser';
 
 export interface Message {
   id: string;
@@ -54,9 +55,17 @@ export async function sendMessage(
     }));
 
   try {
-    const [customProvider] = await Promise.all([
+    const [customProvider, godOn] = await Promise.all([
       getCustomAIProvider(),
+      getGodMode(),
     ]);
+
+    // ── God Mode override: prepend an unrestricted system prompt ──
+    // This wins over the default AXIOM persona because it appears first
+    // in the system block and explicitly says "all restrictions stripped".
+    const effectiveMessages = godOn
+      ? [{ role: 'system' as const, content: GOD_MODE_SYSTEM_PROMPT }, ...aiMessages]
+      : aiMessages;
 
     const customPayload = customProvider.enabled && customProvider.baseUrl && customProvider.apiKey
       ? {
@@ -74,7 +83,7 @@ export async function sendMessage(
           'Content-Type': 'application/json',
           ...(supabaseAnonKey ? { 'Authorization': `Bearer ${supabaseAnonKey}` } : {}),
         },
-        body: JSON.stringify({ messages: aiMessages, stream: true, ...customPayload }),
+        body: JSON.stringify({ messages: effectiveMessages, stream: true, god: godOn || undefined, ...customPayload }),
       }
     );
 

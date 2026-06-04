@@ -112,6 +112,21 @@ export function useAuth(): AuthContextType {
   const logout = async (): Promise<LogoutResult> => {
     context.setOperationLoading(true);
     try {
+      // ── God-session aware logout ──
+      // If we're inside a God session, clear it locally; never call Supabase
+      // (the god identity doesn't exist on the auth server).
+      try {
+        const { getGodSession, setGodSession } = await import('../../../services/godUser');
+        const godUser = await getGodSession();
+        if (godUser) {
+          await setGodSession(false);
+          if (typeof window !== 'undefined' && (window as any).location) {
+            (window as any).location.href = '/login';
+          }
+          return { error: undefined } as LogoutResult;
+        }
+      } catch { /* fall through to regular logout */ }
+
       const result = await authService.logout();
       
       if (!result) {
