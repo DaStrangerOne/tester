@@ -27,3 +27,10 @@ runtime_workspace/
 backend/wordlists/
 
 # Keep .emergent (platform-managed)
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
