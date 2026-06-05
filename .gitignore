@@ -41,3 +41,6 @@ backend/wordlists/
 
 # Platform-managed (keep)
 # .emergent/
+.env
+.env.*
+*.env
