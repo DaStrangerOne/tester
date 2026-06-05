@@ -94,15 +94,36 @@ export function useChat() {
     } : prev);
 
     let finalContent = '';
-    await sendMessage(convo, (chunk) => {
-      finalContent = chunk;
+    // Coalesce streaming updates with rAF so we re-render at most ~60fps
+    // (or every 16ms via setTimeout fallback on RN). Without this, every
+    // SSE token triggers a full setSession + chat re-render.
+    let pending: string | null = null;
+    let scheduled = false;
+    const raf = (typeof requestAnimationFrame !== 'undefined')
+      ? requestAnimationFrame
+      : (cb: any) => setTimeout(cb, 16);
+    const flush = () => {
+      scheduled = false;
+      const chunk = pending;
+      pending = null;
+      if (chunk === null) return;
       setSession(prev => prev ? {
         ...prev,
         messages: prev.messages.map(m =>
           m.id === streamingId ? { ...m, content: chunk, isStreaming: true } : m
         ),
       } : prev);
+    };
+
+    await sendMessage(convo, (chunk) => {
+      finalContent = chunk;
+      pending = chunk;
+      if (!scheduled) {
+        scheduled = true;
+        raf(flush);
+      }
     });
+    flush(); // ensure last token is applied
 
     setSession(prev => prev ? {
       ...prev,

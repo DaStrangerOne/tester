@@ -82,9 +82,12 @@ if [ ! -f /usr/share/wordlists/passwords.txt ]; then
   printf 'password\nadmin\n123456\npassword123\nletmein\nwelcome\nroot\nchangeme\ntoor\nqwerty\n12345678\nadmin123\n' \
     > /usr/share/wordlists/passwords.txt
 fi
-# SecLists (the de-facto wordlist collection) — clone shallow, only if absent
-if [ ! -d /opt/SecLists ]; then
-  log "cloning SecLists (shallow)..."
+# SecLists (the de-facto wordlist collection) — clone shallow, only if absent.
+# Validate completeness too: if a previous clone was interrupted the dir may
+# exist but be missing the Passwords/ subtree, in which case we re-clone.
+if [ ! -d /opt/SecLists/Passwords/Leaked-Databases ]; then
+  log "(re)cloning SecLists (shallow)..."
+  rm -rf /opt/SecLists
   git clone --depth 1 https://github.com/danielmiessler/SecLists.git /opt/SecLists >>"$LOG" 2>&1 || log "  WARN: SecLists clone failed"
 fi
 if [ -d /opt/SecLists ] && [ ! -e /usr/share/wordlists/seclists ]; then

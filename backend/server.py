@@ -137,31 +137,31 @@ class ExecRequest(BaseModel):
     timeout: Optional[int] = None
 
 
+# Pre-computed base env for subprocess.create_subprocess_exec — hoisted so we
+# don't rebuild a 30+ key dict on every /api/exec call.
+_BASE_EXEC_ENV: dict[str, str] = {
+    **os.environ,
+    "TERM": "xterm-256color",
+    "HOME": "/root",
+    "USER": "root",
+    "LOGNAME": "root",
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8",
+    "DEBIAN_FRONTEND": "noninteractive",
+    "PYTHONUNBUFFERED": "1",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/SecLists/bin",
+    "GOPATH": "/root/go",
+    "GOFLAGS": "-buildvcs=false",
+    "PAGER": "cat",
+    "NO_COLOR": "1",
+}
+
+
 async def _run(cmd: list[str], cwd: Path, stdin_data: Optional[str], timeout: int) -> dict:
     """Run a subprocess, capture stdout/stderr/exit/signal/duration."""
     import time
     t0 = time.time()
-    # Strong, predictable execution env so every tool finds binaries and stays
-    # non-interactive regardless of which caller invoked us (chat auto-exec,
-    # terminal tab, or agent runner).
-    base_env = {
-        **os.environ,
-        "TERM": "xterm-256color",
-        "HOME": "/root",
-        "USER": "root",
-        "LOGNAME": "root",
-        "LANG": "C.UTF-8",
-        "LC_ALL": "C.UTF-8",
-        "DEBIAN_FRONTEND": "noninteractive",
-        "PYTHONUNBUFFERED": "1",
-        "PYTHONDONTWRITEBYTECODE": "1",
-        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/SecLists/bin",
-        "GOPATH": "/root/go",
-        "GOFLAGS": "-buildvcs=false",
-        # Tell tools we don't want pager / colour escapes
-        "PAGER": "cat",
-        "NO_COLOR": "1",
-    }
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -169,7 +169,7 @@ async def _run(cmd: list[str], cwd: Path, stdin_data: Optional[str], timeout: in
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=str(cwd),
-            env=base_env,
+            env=_BASE_EXEC_ENV,
             start_new_session=True,
         )
         try:
@@ -279,11 +279,16 @@ async def execute_code(language: str, code: str, stdin: Optional[str], timeout: 
         merged["output"] = _build_output(merged)
         return merged
     finally:
-        # Clean up the per-run directory to avoid disk bloat. Keep WORK_DIR itself.
-        try:
-            shutil.rmtree(run_dir, ignore_errors=True)
-        except Exception:
-            pass
+        # Clean up scratch dir in the background — don't block the response
+        # on filesystem IO when the caller just wants the command output back.
+        asyncio.create_task(_cleanup_run_dir(run_dir))
+
+
+async def _cleanup_run_dir(run_dir: Path) -> None:
+    try:
+        await asyncio.to_thread(shutil.rmtree, str(run_dir), ignore_errors=True)
+    except Exception:
+        pass
 
 
 @app.post("/api/exec")
