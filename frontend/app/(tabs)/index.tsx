@@ -243,7 +243,13 @@ export default function ChatScreen() {
           keyExtractor={keyExtractor}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          onScroll={handleScroll}
+          scrollEventThrottle={64}
+          onContentSizeChange={() => {
+            if (stickToBottomRef.current) {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }
+          }}
           ListHeaderComponent={
             messages.length <= 1 ? (
               <View style={styles.welcomeArea}>
