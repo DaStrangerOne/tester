@@ -14,7 +14,6 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth, useAlert, getSupabaseClient } from '@/template';
 import { Colors, Typography, Spacing, Radius, Shadow } from '@/constants/theme';
-import { MODELS, getActiveModel, setActiveModel } from '@/services/selfUpdateService';
 import { clearAllSessions } from '@/services/sessionStorage';
 import { clearExecLog } from '@/services/executionLog';
 
@@ -103,9 +102,6 @@ export default function ProfileScreen() {
   const [showClearDataConfirm, setShowClearDataConfirm] = useState(false);
   const [clearDataLoading, setClearDataLoading] = useState(false);
 
-  // Model selection
-  const [activeModel, setActiveModelState] = useState(DEFAULT_PREFS.defaultModel);
-
   // Blinking cursor
   const cursorAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -118,9 +114,8 @@ export default function ProfileScreen() {
   }, []);
 
   useEffect(() => {
-    Promise.all([loadPrefs(), getActiveModel()]).then(([p, m]) => {
-      setPrefs({ ...p, defaultModel: m });
-      setActiveModelState(m);
+    loadPrefs().then(p => {
+      setPrefs(p);
       setPrefsLoaded(true);
     });
   }, []);
@@ -131,10 +126,6 @@ export default function ProfileScreen() {
       savePrefs(updated);
       return updated;
     });
-    if (key === 'defaultModel') {
-      setActiveModelState(value as string);
-      await setActiveModel(value as string);
-    }
   }, []);
 
   // ── Update username ────────────────────────────────────────────────────────
@@ -513,39 +504,6 @@ export default function ProfileScreen() {
           {/* ══ CHAT ══ */}
           {activeSection === 'chat' && (
             <>
-              <SectionHeader label="AI MODEL" color={Colors.accent} icon="psychology" />
-              <View style={styles.modelGrid}>
-                {MODELS.map(m => {
-                  const isActive = activeModel === m.id;
-                  const tierColor = m.tier === 'pro' ? Colors.warning : m.tier === 'lite' ? Colors.textMuted : Colors.info;
-                  return (
-                    <Pressable
-                      key={m.id}
-                      style={({ pressed }) => [
-                        styles.modelChip,
-                        isActive && { borderColor: Colors.primary + '66', backgroundColor: Colors.primaryMuted },
-                        pressed && { opacity: 0.75 },
-                      ]}
-                      onPress={() => updatePref('defaultModel', m.id)}
-                    >
-                      <View style={styles.modelChipTop}>
-                        <Text style={[styles.modelChipName, isActive && { color: Colors.primary }]} numberOfLines={1}>
-                          {m.name}
-                        </Text>
-                        <View style={[styles.tierDot, { backgroundColor: tierColor }]} />
-                      </View>
-                      <Text style={styles.modelChipDesc} numberOfLines={2}>{m.description}</Text>
-                      {isActive ? (
-                        <View style={styles.modelActiveRow}>
-                          <MaterialIcons name="check-circle" size={10} color={Colors.primary} />
-                          <Text style={[styles.modelActiveTxt, { color: Colors.primary }]}>ACTIVE</Text>
-                        </View>
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </View>
-
               <SectionHeader label="CHAT PREFERENCES" color={Colors.accent} icon="tune" />
               <ToggleCard prefs={prefs} onUpdate={updatePref} items={[
                 { key: 'autoScroll',       label: 'Auto-Scroll',       desc: 'Scroll to latest message automatically',       color: Colors.accent  },

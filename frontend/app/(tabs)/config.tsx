@@ -1625,41 +1625,6 @@ const dbUrl   = Deno.env.get('SUPABASE_DB_URL');
               ))}
             </ScrollView>
 
-            {/* Quick presets */}
-            <Text style={styles.fieldLabel}>QUICK PRESETS</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: Spacing.sm, paddingBottom: Spacing.sm }}>
-              {[
-                { label: 'OpenAI', url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
-                { label: 'OpenSpace AI', url: 'https://api.openspace.ai/v1', model: 'openspace-default' },
-                { label: 'Lovable AI', url: 'https://ai.gateway.lovable.dev/v1', model: 'google/gemini-2.5-flash' },
-                { label: 'Groq', url: 'https://api.groq.com/openai/v1', model: 'llama-3.1-70b-versatile' },
-                { label: 'Mistral', url: 'https://api.mistral.ai/v1', model: 'mistral-large-latest' },
-                { label: 'Together', url: 'https://api.together.xyz/v1', model: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo' },
-                { label: 'OpenRouter', url: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o-mini' },
-                { label: 'Ollama', url: 'http://localhost:11434/v1', model: 'llama3.2' },
-                { label: 'LM Studio', url: 'http://localhost:1234/v1', model: 'local-model' },
-                { label: 'Perplexity', url: 'https://api.perplexity.ai', model: 'sonar' },
-              ].map(preset => (
-                <Pressable
-                  key={preset.label}
-                  style={({ pressed }) => [{
-                    paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full,
-                    borderWidth: 1, borderColor: customProvider.baseUrl === preset.url ? '#ff880066' : Colors.surfaceBorder,
-                    backgroundColor: customProvider.baseUrl === preset.url ? '#ff880011' : Colors.surface,
-                    opacity: pressed ? 0.7 : 1,
-                  }]}
-                  onPress={() => setCustomProviderState(p => ({
-                    ...p,
-                    baseUrl: preset.url,
-                    label: p.label || preset.label,
-                    model: p.model || preset.model,
-                  }))}
-                >
-                  <Text style={[{ fontSize: Typography.xs, fontWeight: Typography.medium }, customProvider.baseUrl === preset.url && { color: '#ff8800' }]}>{preset.label}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-
             {/* Info note */}
             <View style={[styles.envNote, { borderColor: '#ff880033', backgroundColor: '#ff880008' }]}>
               <MaterialIcons name="info-outline" size={12} color="#ff8800" />

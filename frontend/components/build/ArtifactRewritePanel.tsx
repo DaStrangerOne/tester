@@ -97,7 +97,10 @@ Architecture:
 - AXIOM runtime URL = REACT_APP_BACKEND_URL (local container shell)
 - Real CLI tools: nmap, sqlmap, nikto, whatweb, gobuster, hydra, hashcat, john, dig, whois, curl, etc.
 
-Start immediately with the first FILE comment.`;
+Produce one single-file artifact containing the complete app. Include each file block prefixed by:
+// ==================== FILE: path/to/file.tsx ====================
+
+Do not include markdown fences, explanations, or extra text. After the final file add: // ==================== END OF ARTIFACT ====================.`;
 
       const base = (process.env.EXPO_PUBLIC_AXIOM_RUNTIME_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || '');
       const res = await fetch(`${base}/api/functions/v1/axiom-chat`, {
@@ -197,7 +200,7 @@ Start immediately with the first FILE comment.`;
       <View style={styles.note}>
         <MaterialIcons name="info-outline" size={12} color={ACCENT} />
         <Text style={styles.noteText}>
-          AI rewrites the entire app into a single artifact with FILE boundary comments. Scope by category to focus the rewrite.
+          AI rewrites the entire app into a single standalone artifact file. Scope by category to focus the rewrite.
         </Text>
       </View>
 
