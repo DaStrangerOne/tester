@@ -854,11 +854,12 @@ async function callAI(messages) {
   const resp = await fetch(getEndpoint(), {
     method: 'POST',
     headers: getHeaders(),
-    body: JSON.stringify(buildPayload(messages))
+    body: JSON.stringify(buildPayload(messages)),
+    signal: AbortSignal.timeout(60000)
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error((err.error && err.error.message) || 'HTTP ' + resp.status);
+    throw new Error((err.error && err.error.message) || 'HTTP ' + resp.status + ' from ' + getEndpoint());
   }
   const data = await resp.json();
   if (data.content && data.content[0]) {
@@ -1014,15 +1015,18 @@ async function termRun() {
       const resp = await fetch(state.backendUrl.replace(/\/$/, '') + '/exec', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ cmd, lang: 'shell' })
+        body: JSON.stringify({ cmd, lang: 'shell' }),
+        signal: AbortSignal.timeout(30000)
       });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       if (data.stdout) termPrint(data.stdout, '');
       if (data.stderr) termPrint(data.stderr, 'err');
       $('term-status').textContent = data.exitCode === 0 ? 'OK' : 'ERR:' + data.exitCode;
       $('term-status').style.color = data.exitCode === 0 ? 'var(--acc)' : 'var(--pri)';
+      opsLog('Terminal: ' + cmd.slice(0, 60), data.exitCode === 0 ? 'ok' : 'er');
       return;
-    } catch(e) { termPrint('Backend error: ' + e.message, 'err'); }
+    } catch(e) { termPrint('Backend error: ' + e.message, 'err'); $('term-status').textContent = 'ERR'; $('term-status').style.color = 'var(--pri)'; }
   }
 
   try {
@@ -1402,7 +1406,7 @@ $('plan-gen-btn').addEventListener('click', async () => {
   const desc = $('build-desc').value.trim() || 'generic ' + type;
   const planOut = $('plan-output');
   planOut.style.display = 'block';
-  planOut.innerHTML = '<span style="color:var(--warn)// Generating plan...</span>';
+  planOut.innerHTML = '<span style="color:var(--warn)">// Generating plan...</span>';
   $('plan-gen-btn').disabled = true; $('plan-gen-btn').textContent = 'GENERATING...';
   try {
     const reply = await callAI([{role:'user',content:'Create a concise numbered build plan for: ' + name + ' (' + type + ', ' + stack + '). ' + desc + ' Include specific commands and file structure.'}]);
