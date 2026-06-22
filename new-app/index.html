@@ -455,6 +455,7 @@ select option{background:var(--surf3)}
           <span class="badge badge-info" style="cursor:pointer;margin:2px" onclick="setProviderPreset('openspace')">OpenSpace AI</span>
           <span class="badge badge-info" style="cursor:pointer;margin:2px" onclick="setProviderPreset('lovable')">Lovable AI</span>
           <span class="badge badge-info" style="cursor:pointer;margin:2px" onclick="setProviderPreset('together')">Together AI</span>
+          <span class="badge badge-info" style="cursor:pointer;margin:2px" onclick="setProviderPreset('gemini')">Google Gemini</span>
         </div>
       </div>
 
@@ -630,6 +631,7 @@ const PROVIDER_PRESETS = {
   openspace:  { baseUrl: 'https://api.openspace.ai/v1',  label: 'OpenSpace AI', model: 'openspace-default' },
   lovable:    { baseUrl: 'https://ai.gateway.lovable.dev/v1', label: 'Lovable AI', model: 'google/gemini-3.5-flash' },
   together:   { baseUrl: 'https://api.together.xyz/v1',   label: 'Together AI', model: 'meta-llama/Llama-3-70b-chat-hf' },
+  gemini:     { baseUrl: 'https://gemini.googleapis.com/v1/models/gemini-pro:generate', label: 'Google Gemini', model: 'gemini-pro' },
 };
 
 const APP_STORAGE_KEY = 'axiom_new_app_state_v1';
@@ -821,8 +823,15 @@ function addTyping() {
 
 function getHeaders() {
   const h = { 'Content-Type': 'application/json' };
-  if (state.customProvider.enabled && state.customProvider.apiKey) {
-    h['Authorization'] = 'Bearer ' + state.customProvider.apiKey;
+  if (state.customProvider.enabled && state.customProvider.baseUrl) {
+    const key = state.customProvider.apiKey || state.apiKey;
+    if (key) {
+      if (state.customProvider.baseUrl.includes('googleapis.com') || state.customProvider.baseUrl.includes('gemini.googleapis.com')) {
+        h['x-goog-api-key'] = key;
+      } else {
+        h['Authorization'] = 'Bearer ' + key;
+      }
+    }
   } else if (state.apiKey) {
     h['x-api-key'] = state.apiKey;
     h['anthropic-version'] = '2023-06-01';
@@ -833,21 +842,77 @@ function getHeaders() {
 
 function getEndpoint() {
   if (state.customProvider.enabled && state.customProvider.baseUrl) {
-    return state.customProvider.baseUrl.replace(/\/$/, '') + '/chat/completions';
+    const base = state.customProvider.baseUrl.replace(/\/$/, '');
+    if (base.includes('googleapis.com') || base.includes('gemini.googleapis.com')) {
+      const key = state.customProvider.apiKey || state.apiKey;
+      return key ? base + (base.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(key) : base;
+    }
+    if (base.match(/\/v1\/chat\/completions$/)) return base;
+    if (base.match(/\/v1$/)) return base + '/chat/completions';
+    return base + '/v1/chat/completions';
   }
   return 'https://api.anthropic.com/v1/messages';
 }
 
 function buildPayload(messages) {
   const sysPrompt = state.godMode ? GOD_SYSTEM_PROMPT : (state.systemPrompt || DEFAULT_SYSTEM_PROMPT);
+  const userMessages = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
   if (state.customProvider.enabled && state.customProvider.baseUrl) {
+    const base = state.customProvider.baseUrl.replace(/\/$/, '');
+    if (base.includes('googleapis.com') || base.includes('gemini.googleapis.com')) {
+      const prompt = [sysPrompt, ...userMessages.map(m => `${m.role.toUpperCase()}: ${m.content}`)].join('\n\n');
+      return { prompt: { text: prompt }, temperature: 0.2, maxOutputTokens: state.maxTokens };
+    }
     const model = state.customProvider.model || state.model;
-    const msgs = [{ role: 'system', content: sysPrompt }];
-    messages.filter(m => m.role !== 'system').forEach(m => msgs.push({ role: m.role, content: m.content }));
-    return { model, messages: msgs, max_tokens: state.maxTokens, stream: false };
+    const msgs = [{ role: 'system', content: sysPrompt }, ...userMessages];
+    return { model, messages: msgs, max_tokens: state.maxTokens, temperature: 0.2, stream: false };
   }
-  const msgs = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
-  return { model: state.model, system: sysPrompt, messages: msgs, max_tokens: state.maxTokens };
+  return {
+    model: state.model,
+    messages: [{ role: 'system', content: sysPrompt }, ...userMessages],
+    max_tokens_to_sample: state.maxTokens,
+    temperature: 0.2,
+  };
+}
+
+function parseAIResponse(data) {
+  if (!data) return '';
+  if (typeof data === 'string') return data;
+  if (typeof data.completion === 'string') return data.completion;
+  if (data.output && data.output[0] && data.output[0].content) {
+    return Array.isArray(data.output[0].content)
+      ? data.output[0].content.map(c => c.text || c).join('')
+      : data.output[0].content.text || '';
+  }
+  if (data.choices && data.choices[0]) {
+    const choice = data.choices[0];
+    if (choice.message && choice.message.content) return choice.message.content;
+    if (choice.text) return choice.text;
+  }
+  if (data.candidates && data.candidates[0]) {
+    const candidate = data.candidates[0];
+    if (typeof candidate.content === 'string') return candidate.content;
+    if (Array.isArray(candidate.content)) {
+      return candidate.content.map(item => item.text || item).join('');
+    }
+    if (typeof candidate.output === 'string') return candidate.output;
+  }
+  if (data.content) {
+    if (Array.isArray(data.content)) {
+      return data.content.map(item => item.text || item).join('');
+    }
+    return data.content;
+  }
+  return '';
+}
+
+function addUsageTokens(data) {
+  if (!data || !data.usage) return;
+  const usage = data.usage;
+  if (usage.total_tokens) state.tokensUsed += usage.total_tokens;
+  else {
+    state.tokensUsed += (usage.prompt_tokens || 0) + (usage.completion_tokens || 0) + (usage.input_tokens || 0) + (usage.output_tokens || 0);
+  }
 }
 
 async function callAI(messages) {
@@ -859,33 +924,35 @@ async function callAI(messages) {
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error((err.error && err.error.message) || 'HTTP ' + resp.status + ' from ' + getEndpoint());
+    throw new Error((err.error && err.error.message) || (err.message ? err.message : 'HTTP ' + resp.status + ' from ' + getEndpoint()));
   }
   const data = await resp.json();
-  if (data.content && data.content[0]) {
-    if (data.usage) state.tokensUsed += (data.usage.input_tokens||0) + (data.usage.output_tokens||0);
-    return data.content[0].text || '';
-  }
-  if (data.choices && data.choices[0]) {
-    if (data.usage) state.tokensUsed += (data.usage.prompt_tokens||0) + (data.usage.completion_tokens||0);
-    return data.choices[0].message.content || '';
-  }
-  return '';
+  addUsageTokens(data);
+  return parseAIResponse(data) || '';
 }
 
-async function execInBackend(code, lang) {
-  if (!state.backendUrl) return null;
+async function callBackend(cmd, lang = 'shell', timeout = 15) {
+  if (!state.backendUrl) return { stdout: '', stderr: 'No backend configured', exitCode: 1 };
   const headers = { 'Content-Type': 'application/json' };
   if (state.backendToken) headers['Authorization'] = 'Bearer ' + state.backendToken;
   try {
     const resp = await fetch(state.backendUrl.replace(/\/$/, '') + '/exec', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ cmd: code, language: lang, code: code, timeout: 15 })
+      body: JSON.stringify({ cmd, language: lang, timeout }),
+      signal: AbortSignal.timeout(30000)
     });
-    if (!resp.ok) return null;
-    return await resp.json();
-  } catch { return null; }
+    if (!resp.ok) return { stdout: '', stderr: 'HTTP ' + resp.status, exitCode: resp.status };
+    const j = await resp.json().catch(() => null);
+    if (!j) return { stdout: '', stderr: 'Invalid JSON from backend', exitCode: 1 };
+    return { stdout: j.stdout || '', stderr: j.stderr || '', exitCode: j.exitCode != null ? j.exitCode : (j.code != null ? j.code : 0) };
+  } catch (e) {
+    return { stdout: '', stderr: 'Backend request failed: ' + (e && e.message ? e.message : ''), exitCode: 1 };
+  }
+}
+
+async function execInBackend(code, lang) {
+  return await callBackend(code, lang, 15);
 }
 
 async function sendChat(userText) {
@@ -1009,24 +1076,13 @@ async function termRun() {
   if (cmd.startsWith('echo ')) { termPrint(cmd.slice(5), ''); $('term-status').textContent = 'OK'; $('term-status').style.color = 'var(--acc)'; return; }
 
   if (state.backendUrl) {
-    const headers = { 'Content-Type': 'application/json' };
-    if (state.backendToken) headers['Authorization'] = 'Bearer ' + state.backendToken;
-    try {
-      const resp = await fetch(state.backendUrl.replace(/\/$/, '') + '/exec', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ cmd, lang: 'shell' }),
-        signal: AbortSignal.timeout(30000)
-      });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      if (data.stdout) termPrint(data.stdout, '');
-      if (data.stderr) termPrint(data.stderr, 'err');
-      $('term-status').textContent = data.exitCode === 0 ? 'OK' : 'ERR:' + data.exitCode;
-      $('term-status').style.color = data.exitCode === 0 ? 'var(--acc)' : 'var(--pri)';
-      opsLog('Terminal: ' + cmd.slice(0, 60), data.exitCode === 0 ? 'ok' : 'er');
-      return;
-    } catch(e) { termPrint('Backend error: ' + e.message, 'err'); $('term-status').textContent = 'ERR'; $('term-status').style.color = 'var(--pri)'; }
+    const data = await callBackend(cmd, 'shell', 30);
+    if (data.stdout) termPrint(data.stdout, '');
+    if (data.stderr) termPrint(data.stderr, 'err');
+    $('term-status').textContent = data.exitCode === 0 ? 'OK' : 'ERR:' + data.exitCode;
+    $('term-status').style.color = data.exitCode === 0 ? 'var(--acc)' : 'var(--pri)';
+    opsLog('Terminal: ' + cmd.slice(0, 60), data.exitCode === 0 ? 'ok' : 'er');
+    return;
   }
 
   try {
@@ -1082,7 +1138,18 @@ function updateOpsStats() {
   setTimeout(() => { $('ops-latency').textContent = Math.round(performance.now() - t0) + 'ms'; }, 50);
 }
 $('ops-refresh-btn').addEventListener('click', updateOpsStats);
-setInterval(() => { if ($('ops-panel').classList.contains('active')) updateOpsStats(); }, 5000);
+// Throttled OPS ticker: only run when page visible and OPS panel active
+let _opsTicker = null;
+function startOpsTicker() {
+  if (_opsTicker) clearInterval(_opsTicker);
+  _opsTicker = setInterval(() => {
+    if ($('ops-panel').classList.contains('active') && document.visibilityState === 'visible') updateOpsStats();
+  }, 15000);
+}
+startOpsTicker();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') updateOpsStats();
+});
 
 // ─────────────────────────────────────────────
 //  INTEL
@@ -1238,7 +1305,13 @@ function agentStart(id) {
   a.status = 'run'; a.progress = 0;
   opsLog('Agent #' + id + ' started: ' + a.name, 'ok');
   renderAgents();
-  a._t = setInterval(() => { a.tasks++; a.progress = Math.min(a.progress + Math.random()*6, 99); renderAgents(); }, 1200);
+  a._t = setInterval(() => {
+    const active = document.querySelector('.tab.active')?.dataset?.tab === 'agents';
+    if (!active || document.visibilityState !== 'visible') return;
+    a.tasks++;
+    a.progress = Math.min(a.progress + Math.random()*6, 99);
+    renderAgents();
+  }, 3500);
 }
 function agentStop(id) {
   const a = state.agents.find(x => x.id === id);
@@ -1305,6 +1378,13 @@ $('cfg-save').addEventListener('click', () => {
   state.maxTokens = parseInt($('cfg-tokens').value) || 2048;
   state.hopLimit = parseInt($('cfg-hop-limit').value) || 3;
   state.systemPrompt = $('cfg-sysprompt').value.trim();
+  state.customProvider = {
+    enabled: $('cfg-custom-enabled').checked,
+    baseUrl: $('cfg-custom-url').value.trim(),
+    apiKey: $('cfg-custom-key').value.trim(),
+    model: $('cfg-custom-model').value.trim(),
+    label: $('cfg-custom-label').value.trim() || 'Custom',
+  };
   saveAppState();
   applyStateToUI();
   notify('Config saved!');
@@ -1341,10 +1421,20 @@ $('clear-provider-btn').addEventListener('click', () => {
 function setProviderPreset(key) {
   const p = PROVIDER_PRESETS[key];
   if (!p) return;
+  const currentKey = $('cfg-custom-key') ? $('cfg-custom-key').value.trim() : '';
+  state.customProvider = {
+    enabled: true,
+    baseUrl: p.baseUrl,
+    apiKey: currentKey || state.customProvider.apiKey || '',
+    model: p.model,
+    label: p.label,
+  };
+  saveAppState();
   $('cfg-custom-url').value = p.baseUrl;
   $('cfg-custom-label').value = p.label;
   $('cfg-custom-model').value = p.model;
   $('cfg-custom-enabled').checked = true;
+  if (currentKey) $('cfg-custom-key').value = currentKey;
   notify('Preset loaded: ' + p.label + ' — add your API key');
 }
 

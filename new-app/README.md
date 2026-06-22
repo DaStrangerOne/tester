@@ -31,13 +31,16 @@ Open `http://127.0.0.1:8000` in your browser.
 
 ## Configuration
 
-## Configuration
-
 Use the CONFIG panel to set:
 - `Anthropic` or custom API key
 - backend execution URL
 - backend token
 - selected model and system prompt
+- custom provider base URL, provider key, and model for OpenRouter, OpenSpace, Lovable, Google Gemini, or other OpenAI-compatible endpoints
+
+The app includes provider presets for OpenRouter, OpenSpace AI, Lovable AI, Together AI, and Google Gemini.
+
+For Google Gemini, select the preset and set your API key in the custom provider key field. The configured endpoint supports `gemini-pro` and automatically sends the key using Google API auth.
 
 Saved settings are persisted in browser local storage.
 
