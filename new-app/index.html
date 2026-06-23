@@ -15,7 +15,8 @@
   --mono:'Fira Mono','Consolas',monospace;
   --sans:'Inter','Segoe UI',sans-serif;
 }
-body{background:var(--bg);color:var(--t1);font-family:var(--sans);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+html, body{height:100%;min-height:100vh;}
+body{background:var(--bg);color:var(--t1);font-family:var(--sans);display:flex;flex-direction:column;overflow:hidden;}
 body.god-mode{--acc:#ff00ff;--pri:#ff00ff}
 body.god-mode #nav{border-bottom-color:#ff00ff44;background:linear-gradient(90deg,#0a0a0c,#1a001a)}
 body.god-mode .tab.active{color:var(--god);border-bottom-color:var(--god)}
@@ -27,16 +28,62 @@ body.god-mode .tab.active{color:var(--god);border-bottom-color:var(--god)}
 .tab:hover{color:var(--t1);background:var(--surf2)}
 .tab.active{color:var(--acc);border-bottom-color:var(--acc);background:var(--surf2)}
 #nav .spacer{flex:1}
+#nav{overflow-x:auto;}
+#nav::-webkit-scrollbar{height:6px;}
+#nav::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:3px;}
+.tab{flex:0 0 auto;}
 #god-toggle{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:1px;padding:3px 8px;border:1px solid #ff00ff44;border-radius:3px;cursor:pointer;color:#ff00ff88;background:transparent;transition:all .2s;white-space:nowrap}
 #god-toggle.on{color:#ff00ff;border-color:#ff00ff;background:#ff00ff11;box-shadow:0 0 8px #ff00ff44}
 #god-toggle:hover{color:#ff00ff;border-color:#ff00ff}
 #auto-exec-toggle{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:1px;padding:3px 8px;border:1px solid var(--acc);border-radius:3px;cursor:pointer;color:var(--acc);background:transparent;transition:all .2s;white-space:nowrap;margin-left:6px}
 #auto-exec-toggle.off{color:var(--t3);border-color:var(--brd2)}
 
-/* PANELS */
-#panels{flex:1;overflow:hidden;display:flex;flex-direction:column}
-.panel{display:none;flex:1;overflow:hidden;flex-direction:column}
-.panel.active{display:flex}
+/* PANELS - REFINED SPECIFICITY */
+#panels{flex:1 1 auto;min-height:0;height:0;overflow:hidden;display:flex;flex-direction:column;}
+.panel{
+  display: none !important;
+  flex:1 1 auto;
+  min-height:0;
+  height:0;
+  overflow:hidden;
+  flex-direction:column;
+}
+.panel.active{
+  display: flex !important;
+}
+
+/* Specific panel base styles - only when active (higher specificity) */
+#chat-panel.active,
+#terminal-panel.active,
+#ops-panel.active,
+#intel-panel.active,
+#files-panel.active,
+#agents-panel.active,
+#config-panel.active,
+#build-panel.active{
+  display:flex !important;
+  flex:1 1 auto;
+  min-height:0;
+  flex-direction:column;
+}
+
+#chat-panel #msgs,
+#terminal-panel #term-out,
+#ops-panel #ops-body,
+#intel-panel #intel-body,
+#files-panel #files-body,
+#agents-panel #agents-body,
+#config-panel #config-body,
+#build-panel #build-body{
+  flex:1 1 auto;
+  min-height:0;
+}
+#intel-body,
+#files-body{flex:1 1 auto;min-height:0;}
+#intel-left,
+#files-tree{min-height:0;}
+#intel-main,
+#files-main{flex:1 1 auto;min-height:0;overflow-y:auto;}
 
 /* COMMON */
 .pane-header{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surf2);border-bottom:1px solid var(--brd);font-family:var(--mono);font-size:10px;color:var(--t3);flex-shrink:0}
@@ -215,6 +262,56 @@ select option{background:var(--surf3)}
 #notif{position:fixed;bottom:20px;right:20px;background:var(--surf2);border:1px solid var(--brd2);border-radius:8px;padding:10px 16px;font-size:12px;font-family:var(--mono);color:var(--t1);display:none;z-index:200;box-shadow:0 8px 24px #0008;max-width:320px}
 #notif.show{display:block;animation:ns .3s ease}
 @keyframes ns{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+@media (max-width: 1100px) {
+  #nav{flex-wrap:wrap;gap:6px;height:auto;padding:8px;}
+  .tab{flex:1 1 140px;min-width:120px;}
+  .tab{white-space:normal;text-align:center;}
+  #nav .spacer{flex:1 1 100%;}
+  #chat-input-area,#term-bar{flex-direction:column;align-items:stretch;}
+  #chat-send,#term-run-btn,#ops-refresh-btn,#agents-spawn-btn,#cfg-save,#test-backend-btn{width:100%;}
+  #files-body,#intel-body{flex-direction:column;}
+  #files-tree,#intel-left{width:100%;border-right:none;border-bottom:1px solid var(--brd);}
+  #files-main,#intel-main{padding:12px;}
+  .provider-fields,.model-grid{grid-template-columns:1fr;}
+  .cfg-row{flex-direction:column;align-items:stretch;}
+  .build-row{flex-direction:column;align-items:stretch;}
+  #ops-body{grid-template-columns:1fr;}
+  #agents-body{grid-template-columns:1fr;}
+  #panels, .panel, #files-body, #intel-body, #ops-body, #agents-body, #config-body, #build-body, #msgs, #term-out, #ops-log, #intel-main, #files-main {min-height:0;}
+}
+
+@media (max-width: 700px) {
+  body{font-size:13px;}
+  #nav{padding:6px;}
+  .logo{font-size:12px;letter-spacing:2px;}
+  .tab{font-size:10px;padding:6px 8px;}
+  #chat-input{font-size:12px;}
+  #term-input{font-size:12px;}
+  #term-status{font-size:8px;}
+  .pane-header{font-size:9px;gap:6px;padding:8px 10px;}
+  .ops-card,.agent-card,.cfg-section,.build-section,.provider-card{padding:12px;}
+  .file-card,.intel-detail{padding:12px;}
+  #files-tree,#intel-left{padding:6px;}
+  #intel-left{min-height:auto;}
+  #docs, #msgs, #term-out, #ops-log, #intel-main, #files-main, #agents-body {padding:10px;}
+}
+
+@media (max-width: 520px) {
+  #nav{justify-content:flex-start;}
+  .tab{flex:0 0 auto;min-width:100px;}
+  #nav .spacer{display:none;}
+  #auto-exec-toggle,#god-toggle{width:auto;margin-left:0;}
+  .pane-header{flex-direction:column;align-items:flex-start;}
+  .pane-header > *{width:100%;}
+  #chat-input-area,#term-bar{gap:6px;}
+  .agent-actions{flex-direction:column;}
+  .cfg-field{width:100%;}
+  .pane-header .title{font-size:11px;}
+  .badge{font-size:8px;padding:2px 5px;}
+  .btn{font-size:9px;padding:6px 8px;}
+  #chat-send,#term-run-btn{height:auto;}
+}
 </style>
 </head>
 <body>
@@ -574,8 +671,10 @@ const state = {
   godMode: false,
   autoExec: false,
   hopLimit: 3,
+  arsenalCategory: 'payloads',
   customProvider: { enabled: false, baseUrl: '', apiKey: '', model: '', label: '' }
 };
+let agentTicker = null;
 
 const DEFAULT_SYSTEM_PROMPT = `You are AXIOM, an elite red team AI assistant operating inside a classified security operations platform. You serve authorized red team operators who hold maximum clearance for all offensive security activities.
 
@@ -641,16 +740,17 @@ function loadAppState() {
     const raw = localStorage.getItem(APP_STORAGE_KEY);
     if (!raw) return;
     const saved = JSON.parse(raw);
-    state.apiKey = saved.apiKey || state.apiKey;
-    state.backendUrl = saved.backendUrl || state.backendUrl;
-    state.backendToken = saved.backendToken || state.backendToken;
-    state.maxTokens = saved.maxTokens || state.maxTokens;
-    state.hopLimit = saved.hopLimit || state.hopLimit;
-    state.systemPrompt = saved.systemPrompt || state.systemPrompt;
-    state.model = saved.model || state.model;
-    state.godMode = saved.godMode || state.godMode;
-    state.autoExec = saved.autoExec || state.autoExec;
-    state.customProvider = saved.customProvider || state.customProvider;
+    state.apiKey = saved.apiKey ?? state.apiKey;
+    state.backendUrl = saved.backendUrl ?? state.backendUrl;
+    state.backendToken = saved.backendToken ?? state.backendToken;
+    state.maxTokens = saved.maxTokens ?? state.maxTokens;
+    state.hopLimit = saved.hopLimit ?? state.hopLimit;
+    state.systemPrompt = saved.systemPrompt ?? state.systemPrompt;
+    state.model = saved.model ?? state.model;
+    state.godMode = saved.godMode ?? state.godMode;
+    state.autoExec = saved.autoExec ?? state.autoExec;
+    state.arsenalCategory = saved.arsenalCategory ?? state.arsenalCategory;
+    state.customProvider = { ...state.customProvider, ...(saved.customProvider || {}) };
   } catch (err) {
     console.warn('Failed to load app state:', err);
   }
@@ -668,6 +768,7 @@ function saveAppState() {
       model: state.model,
       godMode: state.godMode,
       autoExec: state.autoExec,
+      arsenalCategory: state.arsenalCategory,
       customProvider: state.customProvider,
     }));
   } catch (err) {
@@ -804,7 +905,8 @@ function addMsg(role, content, kind) {
   msgs.appendChild(div);
   msgs.scrollTop = 999999;
   if (role !== 'error') {
-    state.messages.push({ role: role === 'user' ? 'user' : 'assistant', content: content });
+    const messageRole = kind === 'tool' ? 'assistant' : (role === 'user' ? 'user' : 'assistant');
+    state.messages.push({ role: messageRole, content: content });
   }
   return div;
 }
@@ -824,13 +926,12 @@ function addTyping() {
 function getHeaders() {
   const h = { 'Content-Type': 'application/json' };
   if (state.customProvider.enabled && state.customProvider.baseUrl) {
+    const base = state.customProvider.baseUrl.toLowerCase();
     const key = state.customProvider.apiKey || state.apiKey;
-    if (key) {
-      if (state.customProvider.baseUrl.includes('googleapis.com') || state.customProvider.baseUrl.includes('gemini.googleapis.com')) {
-        h['x-goog-api-key'] = key;
-      } else {
-        h['Authorization'] = 'Bearer ' + key;
-      }
+    if (base.includes('googleapis.com') || base.includes('gemini.googleapis.com')) {
+      if (key) h['x-goog-api-key'] = key;
+    } else if (key) {
+      h['Authorization'] = 'Bearer ' + key;
     }
   } else if (state.apiKey) {
     h['x-api-key'] = state.apiKey;
@@ -847,8 +948,9 @@ function getEndpoint() {
       const key = state.customProvider.apiKey || state.apiKey;
       return key ? base + (base.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(key) : base;
     }
-    if (base.match(/\/v1\/chat\/completions$/)) return base;
+    if (base.match(/\/v1\/chat\/completions$/) || base.match(/\/v1\/responses$/)) return base;
     if (base.match(/\/v1$/)) return base + '/chat/completions';
+    if (base.endsWith('/chat')) return base + '/completions';
     return base + '/v1/chat/completions';
   }
   return 'https://api.anthropic.com/v1/messages';
@@ -879,6 +981,8 @@ function parseAIResponse(data) {
   if (!data) return '';
   if (typeof data === 'string') return data;
   if (typeof data.completion === 'string') return data.completion;
+  if (typeof data.output_text === 'string') return data.output_text;
+  if (data.output && typeof data.output === 'string') return data.output;
   if (data.output && data.output[0] && data.output[0].content) {
     return Array.isArray(data.output[0].content)
       ? data.output[0].content.map(c => c.text || c).join('')
@@ -886,7 +990,11 @@ function parseAIResponse(data) {
   }
   if (data.choices && data.choices[0]) {
     const choice = data.choices[0];
-    if (choice.message && choice.message.content) return choice.message.content;
+    if (choice.message) {
+      if (typeof choice.message.content === 'string') return choice.message.content;
+      if (Array.isArray(choice.message.content)) return choice.message.content.map(i => i.text || i).join('');
+    }
+    if (choice.delta && typeof choice.delta.content === 'string') return choice.delta.content;
     if (choice.text) return choice.text;
   }
   if (data.candidates && data.candidates[0]) {
@@ -978,19 +1086,23 @@ async function sendChat(userText) {
       while (hops < hopLimit) {
         const blocks = extractCodeBlocks(lastReply);
         if (blocks.length === 0) break;
-        const block = blocks[0];
-        const result = await execInBackend(block.code, block.lang);
-        if (!result) break;
-        hops++;
-        state.autoExecHops++;
-        const toolContent = '```\n$ ' + block.code.slice(0,80) + (block.code.length > 80 ? '...' : '') + '\n\nEXIT: ' + result.exitCode + '\n\n' + (result.stdout || '') + (result.stderr ? '\nSTDERR: ' + result.stderr : '') + '\n```';
-        addMsg('user', toolContent, 'tool');
-        opsLog('Auto-exec hop ' + hops + ': exit ' + result.exitCode, result.exitCode === 0 ? 'ok' : 'er');
-        if (hops >= hopLimit && !state.godMode) break;
+        let stopExecution = false;
+        for (const block of blocks) {
+          if (hops >= hopLimit) { stopExecution = true; break; }
+          const result = await execInBackend(block.code, block.lang);
+          if (!result) { stopExecution = true; break; }
+          hops++;
+          state.autoExecHops++;
+          const toolContent = '```\n$ ' + block.code.slice(0,80) + (block.code.length > 80 ? '...' : '') + '\n\nEXIT: ' + result.exitCode + '\n\n' + (result.stdout || '') + (result.stderr ? '\nSTDERR: ' + result.stderr : '') + '\n```';
+          addMsg('assistant', toolContent, 'tool');
+          opsLog('Auto-exec hop ' + hops + ': exit ' + result.exitCode, result.exitCode === 0 ? 'ok' : 'er');
+        }
+        if (stopExecution) break;
         const typing2 = addTyping();
         const followUp = await callAI(state.messages);
         state.reqCount++;
         typing2.remove();
+        if (!followUp || !followUp.trim()) break;
         addMsg('assistant', followUp);
         lastReply = followUp;
       }
@@ -1252,19 +1364,24 @@ const ARSENAL = {
 };
 
 function renderFiles(key) {
+  const activeKey = key || state.arsenalCategory || 'payloads';
+  state.arsenalCategory = activeKey;
+  qsa('.tree-item').forEach(item => item.classList.toggle('sel', item.dataset.file === activeKey));
   const main = $('files-main');
-  const items = ARSENAL[key] || [];
+  const items = ARSENAL[activeKey] || [];
   main.innerHTML = items.length ? items.map(item =>
     '<div class="file-card">' +
     '<div class="file-card-name">' + escHtml(item.name) + '</div>' +
     '<div class="file-card-desc">' + escHtml(item.desc) + '</div>' +
-    '<div class="file-card-tags">' + item.tags.map(t => '<span class="badge badge-acc">' + t + '</span>').join('') + '</div></div>'
+    '<div class="file-card-tags">' + item.tags.map(t => '<span class="badge badge-acc">' + escHtml(t) + '</span>').join('') + '</div></div>'
   ).join('') : '<div style="color:var(--t3);font-size:12px;padding:16px">No items</div>';
 }
-qsa('.tree-item').forEach(item => {
-  item.addEventListener('click', () => { qsa('.tree-item').forEach(i => i.classList.remove('sel')); item.classList.add('sel'); renderFiles(item.dataset.file); });
+$('files-tree').addEventListener('click', e => {
+  const item = e.target.closest('.tree-item');
+  if (!item) return;
+  renderFiles(item.dataset.file);
 });
-renderFiles('payloads');
+renderFiles();
 
 // ─────────────────────────────────────────────
 //  AGENTS
@@ -1288,46 +1405,74 @@ function renderAgents() {
     '<div class="agent-header"><span class="agent-name">' + escHtml(a.name) + ' #' + a.id + '</span>' +
     '<span class="agent-status ' + a.status + '">' + a.status.toUpperCase() + '</span></div>' +
     '<div class="agent-desc">' + escHtml(a.desc) + '</div>' +
-    '<div class="agent-stats"><span>TASKS: ' + a.tasks + '</span><span>TYPE: ' + a.type + '</span></div>' +
+    '<div class="agent-stats"><span>TASKS: ' + a.tasks + '</span><span>TYPE: ' + escHtml(a.type) + '</span></div>' +
     '<div class="agent-progress"><div class="agent-progress-fill" style="width:' + a.progress + '%"></div></div>' +
     '<div class="agent-actions">' +
     (a.status !== 'run'
-      ? '<button class="btn btn-acc" onclick="agentStart(' + a.id + ')" style="padding:3px 10px;font-size:9px">START</button>'
-      : '<button class="btn btn-warn" onclick="agentStop(' + a.id + ')" style="padding:3px 10px;font-size:9px">STOP</button>') +
-    '<button class="btn btn-ghost" onclick="agentRemove(' + a.id + ')" style="padding:3px 10px;font-size:9px">REMOVE</button>' +
+      ? '<button class="btn btn-acc agent-start" data-agent-id="' + a.id + '" style="padding:3px 10px;font-size:9px">START</button>'
+      : '<button class="btn btn-warn agent-stop" data-agent-id="' + a.id + '" style="padding:3px 10px;font-size:9px">STOP</button>') +
+    '<button class="btn btn-ghost agent-remove" data-agent-id="' + a.id + '" style="padding:3px 10px;font-size:9px">REMOVE</button>' +
     '</div></div>'
   ).join('');
+}
+
+function updateAgentProgress() {
+  if (document.visibilityState !== 'visible') return;
+  const active = document.querySelector('.tab.active')?.dataset?.tab === 'agents';
+  if (!active) return;
+  const runners = state.agents.filter(a => a.status === 'run');
+  if (!runners.length) return stopAgentTicker();
+  runners.forEach(a => {
+    a.tasks += Math.floor(Math.random() * 2) + 1;
+    a.progress = Math.min(100, a.progress + Math.random() * 6 + 2);
+  });
+  renderAgents();
+}
+
+function startAgentTicker() {
+  if (agentTicker) return;
+  agentTicker = setInterval(updateAgentProgress, 2600);
+}
+
+function stopAgentTicker() {
+  if (!agentTicker) return;
+  clearInterval(agentTicker);
+  agentTicker = null;
 }
 
 function agentStart(id) {
   const a = state.agents.find(x => x.id === id);
   if (!a) return;
-  a.status = 'run'; a.progress = 0;
+  a.status = 'run';
+  a.progress = Math.max(a.progress, 0);
   opsLog('Agent #' + id + ' started: ' + a.name, 'ok');
   renderAgents();
-  a._t = setInterval(() => {
-    const active = document.querySelector('.tab.active')?.dataset?.tab === 'agents';
-    if (!active || document.visibilityState !== 'visible') return;
-    a.tasks++;
-    a.progress = Math.min(a.progress + Math.random()*6, 99);
-    renderAgents();
-  }, 3500);
+  startAgentTicker();
 }
 function agentStop(id) {
   const a = state.agents.find(x => x.id === id);
   if (!a) return;
-  clearInterval(a._t); a.status = 'idle';
-  opsLog('Agent #' + id + ' stopped', 'wn'); renderAgents();
+  a.status = 'idle';
+  opsLog('Agent #' + id + ' stopped', 'wn');
+  renderAgents();
+  if (!state.agents.some(x => x.status === 'run')) stopAgentTicker();
 }
 function agentRemove(id) {
-  const a = state.agents.find(x => x.id === id);
-  if (a) clearInterval(a._t);
   state.agents = state.agents.filter(x => x.id !== id);
   renderAgents();
+  if (!state.agents.some(x => x.status === 'run')) stopAgentTicker();
 }
+$('agents-body').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn || !btn.dataset.agentId) return;
+  const id = parseInt(btn.dataset.agentId, 10);
+  if (btn.classList.contains('agent-start')) agentStart(id);
+  if (btn.classList.contains('agent-stop')) agentStop(id);
+  if (btn.classList.contains('agent-remove')) agentRemove(id);
+});
 $('agents-spawn-btn').addEventListener('click', () => {
   const tpl = AGENT_TEMPLATES[Math.floor(Math.random() * AGENT_TEMPLATES.length)];
-  state.agents.push({ id: state.agentNextId++, ...tpl, status: 'idle', tasks: 0, progress: 0, _t: null });
+  state.agents.push({ id: state.agentNextId++, ...tpl, status: 'idle', tasks: 0, progress: 0 });
   renderAgents();
   opsLog('Agent spawned: ' + tpl.name, 'ok');
 });
@@ -1430,11 +1575,8 @@ function setProviderPreset(key) {
     label: p.label,
   };
   saveAppState();
-  $('cfg-custom-url').value = p.baseUrl;
-  $('cfg-custom-label').value = p.label;
-  $('cfg-custom-model').value = p.model;
-  $('cfg-custom-enabled').checked = true;
-  if (currentKey) $('cfg-custom-key').value = currentKey;
+  loadConfigUI();
+  applyStateToUI();
   notify('Preset loaded: ' + p.label + ' — add your API key');
 }
 
@@ -1517,12 +1659,7 @@ $('build-run-btn').addEventListener('click', async () => {
   for (const step of BUILD_STEPS) {
     st[step.key] = 'run'; renderBuildSteps(st);
     buildLog('[RUN] ' + step.name + '...', 'wn');
-    await new Promise(r => setTimeout(r, 350 + Math.random()*450));
-    if (Math.random() < 0.05) {
-      st[step.key] = 'er'; renderBuildSteps(st);
-      buildLog('[ERR] ' + step.name + ' failed', 'er');
-      opsLog('Build failed at: ' + step.name, 'er'); return;
-    }
+    await new Promise(r => setTimeout(r, 300));
     st[step.key] = 'ok'; renderBuildSteps(st);
     buildLog('[OK]  ' + step.name, 'ok');
   }
