@@ -1,0 +1,11 @@
+{
+  "name": "axiom-frontend-shim",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "serve -s ../new-app -l tcp://0.0.0.0:3000 --no-clipboard --no-port-switching --cors"
+  },
+  "dependencies": {
+    "serve": "14.2.4"
+  }
+}
