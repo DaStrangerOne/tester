@@ -238,6 +238,13 @@ select option{background:var(--surf3)}
 .provider-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .god-section{background:#1a001a;border-color:#ff00ff44}
 .god-section .cfg-section-head{color:var(--god);background:#0d000d}
+.model-opt.missing-key{border-color:#7a5a00;background:#1a1300}
+.model-opt.missing-key .model-opt-name{color:#ffb84d}
+.missing-badge{display:inline-block;margin-left:6px;padding:1px 6px;border:1px solid var(--warn);border-radius:3px;font-size:9px;font-family:var(--mono);color:var(--warn);font-weight:700;letter-spacing:1px}
+.pv-row.pv-active{background:#001a05}
+.pv-row .cfg-label{padding-top:0}
+#provider-vault .cfg-row:last-child{border:none}
+#active-provider-readout code, .cfg-note code{font-family:var(--mono);color:var(--info);font-size:10px}
 
 /* BUILD */
 #build-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:16px;display:block}
@@ -480,35 +487,43 @@ select option{background:var(--surf3)}
     <div id="config-body">
 
       <div class="cfg-section">
-        <div class="cfg-section-head">API KEY</div>
-        <div class="cfg-row">
-          <div class="cfg-label">Anthropic API Key</div>
+        <div class="cfg-section-head">AI PROVIDERS &amp; API KEYS</div>
+        <div class="cfg-row" style="background:#0a0a0a;border-bottom:1px solid var(--brd)">
+          <div class="cfg-label" style="padding-top:0">Active Provider</div>
           <div class="cfg-field">
-            <input type="password" id="cfg-apikey" placeholder="sk-ant-...">
-            <div class="cfg-note">Used when no custom provider is configured</div>
+            <div id="active-provider-readout" style="font-family:var(--mono);font-size:12px;color:var(--acc);font-weight:600">—</div>
+            <div class="cfg-note">Set automatically when you pick a model below. Each provider keeps its own key.</div>
           </div>
         </div>
+        <div id="provider-vault"></div>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-head">SHELL BACKEND</div>
         <div class="cfg-row">
           <div class="cfg-label">Backend URL</div>
           <div class="cfg-field">
-            <input type="text" id="cfg-backend" placeholder="http://localhost:8080">
-            <div class="cfg-note">Remote shell execution server</div>
+            <input type="text" id="cfg-backend" data-testid="cfg-backend-url" placeholder="http://localhost:8080">
+            <div class="cfg-note">Remote shell execution server (this preview: <code>https://5a4bd285-4c22-4435-b7fa-69a06091d1fc.preview.emergentagent.com/api</code>)</div>
           </div>
         </div>
         <div class="cfg-row">
           <div class="cfg-label">Backend Token</div>
           <div class="cfg-field">
-            <input type="password" id="cfg-backend-token" placeholder="Bearer token">
+            <input type="password" id="cfg-backend-token" data-testid="cfg-backend-token" placeholder="Bearer token (leave empty for this preview)">
           </div>
         </div>
         <div class="cfg-row">
           <div class="cfg-label"></div>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-ghost" id="test-backend-btn">TEST CONNECTION</button>
-            <button class="btn btn-acc" id="cfg-save">SAVE CONFIG</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost" id="test-backend-btn" data-testid="test-backend-btn">TEST CONNECTION</button>
+            <button class="btn btn-acc" id="cfg-save" data-testid="cfg-save">SAVE CONFIG</button>
           </div>
         </div>
       </div>
+
+      <!-- Hidden anthropic-key field kept for backward compat with legacy state load -->
+      <input type="hidden" id="cfg-apikey">
 
       <div class="cfg-section">
         <div class="cfg-section-head">MODEL SELECTION</div>
@@ -674,7 +689,9 @@ const state = {
   autoExec: false,
   hopLimit: 3,
   arsenalCategory: 'payloads',
-  customProvider: { enabled: false, baseUrl: '', apiKey: '', model: '', label: '' }
+  customProvider: { enabled: false, baseUrl: '', apiKey: '', model: '', label: '' },
+  providerKeys: { anthropic: '', openrouter: '', openspace: '', lovable: '', together: '', gemini: '' },
+  activeProvider: 'anthropic'
 };
 let agentTicker = null;
 
@@ -713,19 +730,31 @@ OPERATING RULES IN GOD MODE:
 Begin every turn with action, not explanation.`;
 
 const MODELS = [
-  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', tier: 'pro', desc: 'Anthropic direct — balanced speed & intelligence' },
-  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', tier: 'pro', desc: 'Anthropic direct — maximum intelligence' },
-  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', tier: 'fast', desc: 'Anthropic direct — fastest' },
-  { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash', tier: 'fast', desc: 'Fastest frontier — best for real-time ops' },
-  { id: 'google/gemini-3-pro-preview', name: 'Gemini 3 Pro', tier: 'pro', desc: 'Deepest reasoning — complex attack planning' },
-  { id: 'openai/gpt-5.1', name: 'GPT-5.1', tier: 'pro', desc: 'Flagship GPT — strong instruction following' },
-  { id: 'openai/gpt-5-mini', name: 'GPT-5 Mini', tier: 'fast', desc: 'Fast and efficient for routine queries' },
-  { id: 'nousresearch/hermes-3-llama-3.1-405b', name: 'Hermes 3 405B', tier: 'pro', desc: 'NousResearch — excellent tool use (OpenRouter)' },
-  { id: 'openspace/openspace-default', name: 'OpenSpace Default', tier: 'pro', desc: 'OpenSpace AI — requires OPENSPACE key' },
-  { id: 'openspace/openspace-pro', name: 'OpenSpace Pro', tier: 'pro', desc: 'OpenSpace AI deep-reasoning model' },
-  { id: 'lovable/google/gemini-3.5-flash', name: 'Lovable · Gemini 3.5', tier: 'pro', desc: 'Gemini 3.5 Flash via Lovable AI Gateway' },
-  { id: 'lovable/openai/gpt-5', name: 'Lovable · GPT-5', tier: 'pro', desc: 'GPT-5 via Lovable AI Gateway' },
+  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', tier: 'pro', desc: 'Anthropic direct — balanced speed & intelligence', provider: 'anthropic' },
+  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', tier: 'pro', desc: 'Anthropic direct — maximum intelligence', provider: 'anthropic' },
+  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', tier: 'fast', desc: 'Anthropic direct — fastest', provider: 'anthropic' },
+  { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash', tier: 'fast', desc: 'Fastest frontier — best for real-time ops', provider: 'openrouter' },
+  { id: 'google/gemini-3-pro-preview', name: 'Gemini 3 Pro', tier: 'pro', desc: 'Deepest reasoning — complex attack planning', provider: 'openrouter' },
+  { id: 'openai/gpt-5.1', name: 'GPT-5.1', tier: 'pro', desc: 'Flagship GPT — strong instruction following', provider: 'openrouter' },
+  { id: 'openai/gpt-5-mini', name: 'GPT-5 Mini', tier: 'fast', desc: 'Fast and efficient for routine queries', provider: 'openrouter' },
+  { id: 'nousresearch/hermes-3-llama-3.1-405b', name: 'Hermes 3 405B', tier: 'pro', desc: 'NousResearch — excellent tool use (OpenRouter)', provider: 'openrouter' },
+  { id: 'openspace-default', name: 'OpenSpace Default', tier: 'pro', desc: 'OpenSpace AI — direct gateway', provider: 'openspace' },
+  { id: 'openspace-pro', name: 'OpenSpace Pro', tier: 'pro', desc: 'OpenSpace AI deep-reasoning model', provider: 'openspace' },
+  { id: 'google/gemini-3.5-flash', name: 'Lovable · Gemini 3.5', tier: 'pro', desc: 'Gemini 3.5 Flash via Lovable AI Gateway', provider: 'lovable' },
+  { id: 'openai/gpt-5', name: 'Lovable · GPT-5', tier: 'pro', desc: 'GPT-5 via Lovable AI Gateway', provider: 'lovable' },
+  { id: 'meta-llama/Llama-3-70b-chat-hf', name: 'Llama-3 70B (Together)', tier: 'pro', desc: 'Together AI — open-weight 70B chat', provider: 'together' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (direct)', tier: 'fast', desc: 'Google AI Studio direct — fastest', provider: 'gemini' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (direct)', tier: 'pro', desc: 'Google AI Studio direct — deep reasoning', provider: 'gemini' },
 ];
+
+const PROVIDERS = {
+  anthropic:  { label: 'Anthropic Direct', baseUrl: 'https://api.anthropic.com/v1/messages', keyPlaceholder: 'sk-ant-...',    keyHelp: 'console.anthropic.com/settings/keys', direct: true },
+  openrouter: { label: 'OpenRouter',       baseUrl: 'https://openrouter.ai/api/v1',          keyPlaceholder: 'sk-or-v1-...', keyHelp: 'openrouter.ai/keys' },
+  openspace:  { label: 'OpenSpace AI',     baseUrl: 'https://api.openspace.ai/v1',           keyPlaceholder: 'sk-...',       keyHelp: 'app.openspace.ai' },
+  lovable:    { label: 'Lovable AI',       baseUrl: 'https://ai.gateway.lovable.dev/v1',     keyPlaceholder: 'sk-lov-...',   keyHelp: 'lovable.dev (settings → API)' },
+  together:   { label: 'Together AI',      baseUrl: 'https://api.together.xyz/v1',           keyPlaceholder: 'tok-...',      keyHelp: 'api.together.xyz/settings/api-keys' },
+  gemini:     { label: 'Google Gemini',    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', keyPlaceholder: 'AIza...', keyHelp: 'aistudio.google.com/apikey', gemini: true },
+};
 
 const PROVIDER_PRESETS = {
   openrouter: { baseUrl: 'https://openrouter.ai/api/v1', label: 'OpenRouter', model: 'openai/gpt-4o' },
@@ -753,6 +782,10 @@ function loadAppState() {
     state.autoExec = saved.autoExec ?? state.autoExec;
     state.arsenalCategory = saved.arsenalCategory ?? state.arsenalCategory;
     state.customProvider = { ...state.customProvider, ...(saved.customProvider || {}) };
+    state.providerKeys = { ...state.providerKeys, ...(saved.providerKeys || {}) };
+    state.activeProvider = saved.activeProvider ?? state.activeProvider;
+    // Migration: prior versions stored only state.apiKey (Anthropic). Lift it into the vault.
+    if (state.apiKey && !state.providerKeys.anthropic) state.providerKeys.anthropic = state.apiKey;
   } catch (err) {
     console.warn('Failed to load app state:', err);
   }
@@ -772,6 +805,8 @@ function saveAppState() {
       autoExec: state.autoExec,
       arsenalCategory: state.arsenalCategory,
       customProvider: state.customProvider,
+      providerKeys: state.providerKeys,
+      activeProvider: state.activeProvider,
     }));
   } catch (err) {
     console.warn('Failed to save app state:', err);
@@ -930,8 +965,8 @@ function getHeaders() {
   if (state.customProvider.enabled && state.customProvider.baseUrl) {
     const base = state.customProvider.baseUrl.toLowerCase();
     const key = state.customProvider.apiKey || state.apiKey;
-    if (base.includes('googleapis.com') || base.includes('gemini.googleapis.com')) {
-      if (key) h['x-goog-api-key'] = key;
+    if (base.includes('googleapis.com')) {
+      // Gemini puts the key in the URL query string, no Authorization header.
     } else if (key) {
       h['Authorization'] = 'Bearer ' + key;
     }
@@ -946,7 +981,7 @@ function getHeaders() {
 function getEndpoint() {
   if (state.customProvider.enabled && state.customProvider.baseUrl) {
     const base = state.customProvider.baseUrl.replace(/\/$/, '');
-    if (base.includes('googleapis.com') || base.includes('gemini.googleapis.com')) {
+    if (base.includes('googleapis.com')) {
       const key = state.customProvider.apiKey || state.apiKey;
       return key ? base + (base.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(key) : base;
     }
@@ -963,18 +998,27 @@ function buildPayload(messages) {
   const userMessages = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
   if (state.customProvider.enabled && state.customProvider.baseUrl) {
     const base = state.customProvider.baseUrl.replace(/\/$/, '');
-    if (base.includes('googleapis.com') || base.includes('gemini.googleapis.com')) {
-      const prompt = [sysPrompt, ...userMessages.map(m => `${m.role.toUpperCase()}: ${m.content}`)].join('\n\n');
-      return { prompt: { text: prompt }, temperature: 0.2, maxOutputTokens: state.maxTokens };
+    if (base.includes('googleapis.com')) {
+      // Gemini generateContent shape
+      return {
+        systemInstruction: { parts: [{ text: sysPrompt }] },
+        contents: userMessages.map(m => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.content }],
+        })),
+        generationConfig: { temperature: 0.2, maxOutputTokens: state.maxTokens },
+      };
     }
     const model = state.customProvider.model || state.model;
     const msgs = [{ role: 'system', content: sysPrompt }, ...userMessages];
     return { model, messages: msgs, max_tokens: state.maxTokens, temperature: 0.2, stream: false };
   }
+  // Anthropic direct (Messages API)
   return {
     model: state.model,
-    messages: [{ role: 'system', content: sysPrompt }, ...userMessages],
-    max_tokens_to_sample: state.maxTokens,
+    system: sysPrompt,
+    messages: userMessages,
+    max_tokens: state.maxTokens,
     temperature: 0.2,
   };
 }
@@ -1004,6 +1048,9 @@ function parseAIResponse(data) {
     if (typeof candidate.content === 'string') return candidate.content;
     if (Array.isArray(candidate.content)) {
       return candidate.content.map(item => item.text || item).join('');
+    }
+    if (candidate.content && Array.isArray(candidate.content.parts)) {
+      return candidate.content.parts.map(p => p.text || '').join('');
     }
     if (typeof candidate.output === 'string') return candidate.output;
   }
@@ -1065,9 +1112,17 @@ async function execInBackend(code, lang) {
   return await callBackend(code, lang, 15);
 }
 
+function activeKey() {
+  const m = MODELS.find(x => x.id === state.model);
+  if (m && state.providerKeys[m.provider]) return state.providerKeys[m.provider];
+  if (state.customProvider.enabled && state.customProvider.apiKey) return state.customProvider.apiKey;
+  return state.apiKey;
+}
+
 async function sendChat(userText) {
-  if (!userText || (!state.apiKey && !state.customProvider.enabled)) {
-    notify('Set API key in CONFIG tab first');
+  if (!userText) return;
+  if (!activeKey()) {
+    notify('Add an API key for ' + (PROVIDERS[state.activeProvider]?.label || state.activeProvider) + ' in CONFIG → AI PROVIDERS');
     return;
   }
   addMsg('user', userText);
@@ -1286,7 +1341,7 @@ qsa('.intel-item').forEach(item => {
 });
 
 $('intel-gen-btn').addEventListener('click', async () => {
-  if (!state.apiKey && !state.customProvider.enabled) { notify('Set API key in CONFIG tab first'); return; }
+  if (!activeKey()) { notify('Add an API key in CONFIG → AI PROVIDERS'); return; }
   const topic = document.querySelector('.intel-item.sel');
   const prefix = INTEL_PROMPTS[topic ? topic.dataset.topic : 'custom'] || '';
   const userInput = $('intel-prompt').value.trim();
@@ -1484,22 +1539,163 @@ $('agents-spawn-btn').addEventListener('click', () => {
 // ─────────────────────────────────────────────
 function buildModelGrid() {
   const grid = $('model-grid');
-  grid.innerHTML = MODELS.map(m =>
-    '<div class="model-opt' + (m.id === state.model ? ' sel' : '') + '" onclick="selectModel(\'' + m.id + '\')">' +
-    '<div class="model-opt-name">' + m.name + '</div>' +
-    '<div class="model-opt-desc">' + m.desc + '</div>' +
-    '<div class="model-opt-tier tier-' + m.tier + '">' + m.tier.toUpperCase() + '</div>' +
-    '</div>'
-  ).join('');
+  grid.innerHTML = MODELS.map(m => {
+    const hasKey = !!(state.providerKeys[m.provider] && state.providerKeys[m.provider].trim());
+    const sel = m.id === state.model;
+    const missing = !hasKey;
+    return (
+      '<div class="model-opt' + (sel ? ' sel' : '') + (missing ? ' missing-key' : '') + '" ' +
+        'data-testid="model-card-' + m.id.replace(/[^a-z0-9]+/gi,'-') + '" ' +
+        'onclick="selectModel(\'' + m.id + '\')">' +
+        '<div class="model-opt-name">' + m.name + (missing ? ' <span class="missing-badge">⚠ KEY MISSING</span>' : '') + '</div>' +
+        '<div class="model-opt-desc">' + m.desc + '</div>' +
+        '<div class="model-opt-tier tier-' + m.tier + '">' + m.tier.toUpperCase() + ' · ' + (PROVIDERS[m.provider]?.label || m.provider) + '</div>' +
+      '</div>'
+    );
+  }).join('');
+}
+
+function applyModelProvider(m) {
+  if (!m) return;
+  const p = PROVIDERS[m.provider];
+  if (!p) return;
+  state.activeProvider = m.provider;
+  if (p.direct) {
+    // Anthropic direct (no /v1/chat/completions wrapper) — keep customProvider disabled.
+    state.customProvider = { enabled: false, baseUrl: '', apiKey: '', model: '', label: '' };
+    state.apiKey = state.providerKeys.anthropic || '';
+  } else if (p.gemini) {
+    // Google AI Studio: bake the chosen model into the URL template.
+    state.customProvider = {
+      enabled: true,
+      baseUrl: p.baseUrl.replace('{model}', m.id),
+      apiKey: state.providerKeys[m.provider] || '',
+      model: m.id,
+      label: p.label,
+    };
+  } else {
+    state.customProvider = {
+      enabled: true,
+      baseUrl: p.baseUrl,
+      apiKey: state.providerKeys[m.provider] || '',
+      model: m.id,
+      label: p.label,
+    };
+  }
 }
 
 function selectModel(id) {
+  const m = MODELS.find(x => x.id === id);
+  if (!m) return;
   state.model = id;
+  applyModelProvider(m);
   saveAppState();
   buildModelGrid();
-  const m = MODELS.find(x => x.id === id);
-  $('chat-model-badge').textContent = m ? m.name : id;
-  opsLog('Model: ' + id, 'ok');
+  renderProviderVault();
+  updateActiveProviderReadout();
+  $('chat-model-badge').textContent = m.name + ' · ' + (PROVIDERS[m.provider]?.label || m.provider);
+  applyStateToUI();
+  opsLog('Model: ' + m.name + ' (' + m.provider + ')', 'ok');
+  if (!state.providerKeys[m.provider]) {
+    notify('Add your ' + (PROVIDERS[m.provider]?.label || m.provider) + ' API key below to use this model');
+  }
+}
+
+function renderProviderVault() {
+  const host = $('provider-vault');
+  if (!host) return;
+  host.innerHTML = Object.entries(PROVIDERS).map(([pid, p]) => {
+    const k = state.providerKeys[pid] || '';
+    const isActive = state.activeProvider === pid;
+    const has = !!k.trim();
+    return (
+      '<div class="cfg-row pv-row' + (isActive ? ' pv-active' : '') + '">' +
+        '<div class="cfg-label">' +
+          '<div style="font-weight:600;color:' + (isActive ? 'var(--acc)' : 'var(--t1)') + '">' + p.label + (isActive ? ' <span class="badge badge-info" style="font-size:8px;padding:1px 5px;margin-left:4px">ACTIVE</span>' : '') + '</div>' +
+          '<div class="cfg-note" style="margin-top:2px">' + (has ? '<span style="color:var(--acc)">✓ key set</span>' : '<span style="color:var(--warn)">⚠ no key</span>') + '</div>' +
+        '</div>' +
+        '<div class="cfg-field" style="flex-direction:row;flex-wrap:wrap;gap:6px;align-items:center">' +
+          '<input type="password" data-testid="pv-key-' + pid + '" data-provider="' + pid + '" class="pv-input" value="' + k.replace(/"/g, '&quot;') + '" placeholder="' + p.keyPlaceholder + '" style="flex:1;min-width:200px">' +
+          '<button class="btn btn-ghost" data-testid="pv-test-' + pid + '" onclick="testAIProvider(\'' + pid + '\')">TEST</button>' +
+          '<div class="cfg-note" style="flex:1 1 100%;margin-top:2px">Get one: <a href="https://' + p.keyHelp + '" target="_blank" rel="noopener" style="color:var(--info)">' + p.keyHelp + '</a></div>' +
+        '</div>' +
+      '</div>'
+    );
+  }).join('');
+  // Live-sync key edits into state without waiting for SAVE
+  host.querySelectorAll('.pv-input').forEach(el => {
+    el.addEventListener('input', e => {
+      const pid = e.target.dataset.provider;
+      state.providerKeys[pid] = e.target.value;
+      if (state.activeProvider === pid) {
+        // Refresh the active model's customProvider/key
+        const cur = MODELS.find(x => x.id === state.model);
+        if (cur) applyModelProvider(cur);
+      }
+      saveAppState();
+      buildModelGrid();
+      updateActiveProviderReadout();
+      // Refresh the "✓ key set / ⚠ no key" hint without rebuilding the whole vault (focus stays)
+      const hint = e.target.closest('.pv-row')?.querySelector('.cfg-label .cfg-note');
+      if (hint) hint.innerHTML = e.target.value.trim()
+        ? '<span style="color:var(--acc)">✓ key set</span>'
+        : '<span style="color:var(--warn)">⚠ no key</span>';
+    });
+  });
+}
+
+async function testAIProvider(providerId) {
+  const p = PROVIDERS[providerId];
+  if (!p) return;
+  const key = (state.providerKeys[providerId] || '').trim();
+  if (!key) { notify('Paste the ' + p.label + ' key first'); return; }
+  // Find any model under this provider, preferring the currently selected one
+  let model = MODELS.find(m => m.id === state.model && m.provider === providerId);
+  if (!model) model = MODELS.find(m => m.provider === providerId);
+  if (!model) { notify('No model registered for ' + p.label); return; }
+
+  const btn = document.querySelector('[data-testid="pv-test-' + providerId + '"]');
+  if (btn) { btn.textContent = '…'; btn.disabled = true; }
+  notify('Testing ' + p.label + '…');
+
+  // Build a one-off request without touching live state
+  const probe = { role: 'user', content: 'Reply with the single word OK.' };
+  try {
+    let url, headers = { 'Content-Type': 'application/json' }, body;
+    if (p.direct) {
+      url = 'https://api.anthropic.com/v1/messages';
+      headers['x-api-key'] = key;
+      headers['anthropic-version'] = '2023-06-01';
+      headers['anthropic-dangerous-direct-browser-access'] = 'true';
+      body = { model: model.id, messages: [probe], max_tokens: 16, system: 'Respond with one word.' };
+    } else if (p.gemini) {
+      url = p.baseUrl.replace('{model}', model.id) + '?key=' + encodeURIComponent(key);
+      body = { contents: [{ role: 'user', parts: [{ text: 'Reply with the single word OK.' }] }] };
+    } else {
+      url = p.baseUrl.replace(/\/$/, '') + '/chat/completions';
+      headers['Authorization'] = 'Bearer ' + key;
+      body = { model: model.id, messages: [{ role: 'system', content: 'Respond with one word.' }, probe], max_tokens: 16, temperature: 0 };
+    }
+    const t0 = performance.now();
+    const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });
+    const ms = Math.round(performance.now() - t0);
+    const txt = await resp.text();
+    let data; try { data = JSON.parse(txt); } catch { data = null; }
+    if (!resp.ok) {
+      const msg = (data && (data.error?.message || data.message)) || (txt || '').slice(0, 160) || ('HTTP ' + resp.status);
+      notify('❌ ' + p.label + ' ' + resp.status + ' — ' + msg);
+      opsLog(p.label + ' test FAILED: ' + msg, 'er');
+      return;
+    }
+    const reply = data ? parseAIResponse(data) : '';
+    notify('✅ ' + p.label + ' OK (' + ms + 'ms): "' + (reply || '(empty)').slice(0, 60) + '"');
+    opsLog(p.label + ' test OK in ' + ms + 'ms', 'ok');
+  } catch (e) {
+    notify('❌ ' + p.label + ': ' + (e?.message || e));
+    opsLog(p.label + ' test error: ' + (e?.message || e), 'er');
+  } finally {
+    if (btn) { btn.textContent = 'TEST'; btn.disabled = false; }
+  }
 }
 
 function loadConfigUI() {
@@ -1514,8 +1710,21 @@ function loadConfigUI() {
   $('cfg-custom-key').value = state.customProvider.apiKey || '';
   $('cfg-custom-model').value = state.customProvider.model || '';
   $('cfg-custom-label').value = state.customProvider.label || '';
+  renderProviderVault();
+  updateActiveProviderReadout();
   buildModelGrid();
   applyStateToUI();
+}
+
+function updateActiveProviderReadout() {
+  const el = $('active-provider-readout');
+  if (!el) return;
+  const m = MODELS.find(x => x.id === state.model);
+  const p = m && PROVIDERS[m.provider];
+  if (!m || !p) { el.textContent = '—'; return; }
+  const has = !!(state.providerKeys[m.provider] && state.providerKeys[m.provider].trim());
+  el.innerHTML = p.label + ' · <span style="color:var(--t2)">' + m.name + '</span> ' +
+    (has ? '<span style="color:var(--acc)">●</span>' : '<span class="missing-badge">⚠ KEY MISSING</span>');
 }
 
 $('cfg-save').addEventListener('click', () => {
@@ -1633,7 +1842,7 @@ function renderBuildSteps(statuses) {
 renderBuildSteps({});
 
 $('plan-gen-btn').addEventListener('click', async () => {
-  if (!state.apiKey && !state.customProvider.enabled) { notify('Set API key in CONFIG tab first'); return; }
+  if (!activeKey()) { notify('Add an API key in CONFIG → AI PROVIDERS'); return; }
   const name = $('build-name').value.trim() || 'project';
   const type = $('build-type').value;
   const stack = $('build-stack').value;

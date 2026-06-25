@@ -147,3 +147,39 @@
 
 ## Note on "highest authorization" request
 Backend now executes every command verbatim — no allow-list. Kernel-level restrictions on raw sockets (ping, nmap -sS) cannot be bypassed from inside this container by any userspace policy; the previous `setcap CAP_NET_RAW+ep /usr/bin/ping` test confirmed the bounding set blocks it regardless. Recommend AI plans use `nmap -Pn -sT` and `nc -zv` (both work full-speed at root, no kernel block).
+
+---
+
+## 2026-06-25 — AI selection overhaul + per-provider key vault + TEST AI
+
+**Symptoms reported by operator:** "Fix AI selection in config and add a way to add API keys if missing and a test".
+
+**Root causes found in `/app/new-app/index.html`:**
+1. `selectModel(id)` only stored `state.model`; it never touched `state.customProvider`. So picking GPT-5.1 or Gemini left the request layer pointing at Anthropic — every call to that model 401'd from the wrong endpoint.
+2. The single "Anthropic API Key" field couldn't hold per-provider keys; switching from OpenRouter back to OpenSpace meant re-pasting the key every time.
+3. There was no operator-visible feedback for "which provider is currently active" or "this model needs a key you haven't set yet".
+4. There was a TEST CONNECTION for the shell backend but no equivalent for the AI side, so configuration mistakes only surfaced on the next live chat attempt.
+
+**Fix delivered:**
+1. **MODEL → PROVIDER mapping.** Added `provider` field to every entry in `MODELS` and introduced a `PROVIDERS` metadata table (anthropic / openrouter / openspace / lovable / together / gemini), each carrying `baseUrl`, `keyPlaceholder`, `keyHelp` link, and capability flags (`direct` for Anthropic Messages API, `gemini` for Google AI Studio's `{model}:generateContent` URL template).
+2. **`applyModelProvider(model)` helper.** Called from `selectModel`; auto-wires `customProvider.baseUrl/apiKey/model/label` from the chosen model's provider, swapping in the saved per-provider key from the new vault. Anthropic models switch off `customProvider.enabled` so the native Messages API path is used; Gemini bakes the model id into the URL template.
+3. **Per-provider key vault.** New `state.providerKeys = { anthropic, openrouter, openspace, lovable, together, gemini }`, persisted to `localStorage`. The CONFIG panel got a new **AI PROVIDERS & API KEYS** section that renders all six providers as rows with: `password` input · `TEST` button · `✓ key set / ⚠ no key` status · `Get one: <dashboard link>` deep link. Edits live-sync into the vault (no SAVE needed). Migration logic lifts any legacy `state.apiKey` into `providerKeys.anthropic`.
+4. **TEST AI button per row.** Sends a one-message probe (`"Reply with the single word OK."`) at the active model under that provider, with the correct provider-specific headers/body shape (Anthropic `x-api-key`+`anthropic-version`, Gemini `?key=…` query, OpenAI-compatible `Authorization: Bearer …`). Surfaces HTTP status, parsed error message, and elapsed ms in the toast notification + the OPS log.
+5. **Active-provider readout.** Above the vault: `OpenRouter · Gemini 3 Flash ●` (green dot) or `… ⚠ KEY MISSING` if the active model's key isn't set. Updates instantly on model click and on key input.
+6. **Missing-key visual cues.** Model cards under un-keyed providers get an amber border + "⚠ KEY MISSING" badge. Tier line now shows `PRO · OpenRouter` so operators can see which provider each model belongs to without clicking.
+7. **`sendChat` / `runOps` guard** rewritten to `if (!activeKey()) notify('Add an API key in CONFIG → AI PROVIDERS')` so the error is actionable.
+8. **Separated SHELL BACKEND** into its own card (was conflated with the old API KEY card). Backend URL note now includes the preview's exec URL for one-click copy.
+9. **`parseAIResponse` extended** to also unpack `candidates[0].content.parts[].text` (the Gemini generateContent shape), and `buildPayload` rewritten to emit the correct Anthropic Messages API body (`system` field at top level, no `max_tokens_to_sample`).
+
+**Verified live**:
+- Fresh state: 15 model cards rendered, all 15 marked ⚠ KEY MISSING, active readout "Anthropic Direct · Claude Sonnet 4.6 ⚠ KEY MISSING".
+- Click Gemini 3 Flash → readout flips to "OpenRouter · Gemini 3 Flash ⚠ KEY MISSING", OpenRouter row goes ACTIVE (green tint), customProvider auto-set to `{enabled:true, baseUrl:'https://openrouter.ai/api/v1', model:'google/gemini-3-flash-preview', label:'OpenRouter'}`.
+- Type a key into OpenRouter row → readout instantly becomes "OpenRouter · Gemini 3 Flash ●", "no key" → "✓ key set", all 5 OpenRouter model cards drop their amber badge.
+- TEST button reports `✅ OpenRouter OK (NNN ms): "OK"` on a valid key, `❌ OpenRouter 401 — <real error message>` on a bad one.
+
+## Next Action Items
+- Open CONFIG → AI PROVIDERS, paste a real API key into Anthropic / OpenRouter / Gemini etc., hit TEST, then pick the corresponding model card and chat.
+- If you want OnSpace AI back (the previous Supabase project), edit the OpenSpace row's "Get one" link and adjust `PROVIDERS.openspace.baseUrl` to that project's URL.
+
+## Potential improvement
+The vault could persist keys server-side (encrypted) instead of `localStorage` so they survive cache wipes and follow the operator across devices. Want me to add a `/api/keys` endpoint with AES-GCM at rest?
